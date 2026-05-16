@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Professional Face Recognition System</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+            min-height: 100vh; padding: 20px; color: #333;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { text-align: center; color: white; margin-bottom: 30px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        
+        .card {
+            background: white; border-radius: 15px; padding: 20px;
+            margin-bottom: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+
+        /* Camera Section - ပိုကြီးအောင် ပြင်ထားသည် */
+        .video-wrapper {
+            position: relative;
+            width: 100%;
+            max-width: 900px;
+            margin: 0 auto;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 4px solid #fff;
+        }
+        video { width: 100%; display: block; }
+        #overlay {
+            position: absolute; top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+        }
+
+        .controls { text-align: center; margin-top: 15px; }
+        button {
+            padding: 10px 20px; border-radius: 8px; border: none;
+            cursor: pointer; font-weight: bold; transition: 0.3s;
+            margin: 5px; background: #667eea; color: white;
+        }
+        button:hover { opacity: 0.8; transform: scale(1.05); }
+        button.register { background: #28a745; }
+        button.delete { background: #dc3545; padding: 5px 10px; }
+
+        .row { display: flex; gap: 20px; flex-wrap: wrap; }
+        .col { flex: 1; min-width: 300px; }
+
+        /* Table Styling */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
+        th { background: #f8f9fa; }
+
+        .input-group { margin: 10px 0; }
+        input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+
+        /* Modal for multi-face selection */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            max-width: 500px;
+            text-align: center;
+        }
+        .face-options {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+        .face-option {
+            cursor: pointer;
+            border: 2px solid #ddd;
+            border-radius: 12px;
+            padding: 8px;
+            transition: 0.2s;
+        }
+        .face-option:hover { border-color: #28a745; transform: scale(1.02); }
+        .face-option img { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🚀 Real-time Face Intelligence</h1>
+
+    <div class="row">
+        <div class="col" style="flex: 2;">
+            <div class="card">
+                <h2>📸 Live Stream</h2>
+                <div class="video-wrapper">
+                    <video id="webcam" autoplay playsinline></video>
+                    <canvas id="overlay"></canvas>
+                </div>
+                <div class="controls">
+                    <button onclick="toggleRecognition()" id="toggleBtn">⏸️ Pause Recognition</button>
+                    <button onclick="restartCamera()">🔄 Restart Camera</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col">
+            <div class="card">
+                <h2>📝 Register New Person</h2>
+                <div class="input-group">
+                    <label>Full Name</label>
+                    <input type="text" id="reg-name" placeholder="Enter name...">
+                </div>
+                <button class="register" style="width: 100%;" onclick="registerFace()">
+                    📸 Capture & Save (Closest Face)
+                </button>
+                <div id="status-msg" style="margin-top: 10px; font-size: 14px;"></div>
+            </div>
+
+            <div class="card">
+                <h2>👥 Database Management</h2>
+                <div style="max-height: 350px; overflow-y: auto;">
+                    <table style="width:100%">
+                        <thead>
+                            <tr><th>Name</th><th>Registered On</th><th>Action</th></tr>
+                        </thead>
+                        <tbody id="person-list"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal for multi-face selection -->
+<div id="faceSelectModal" class="modal">
+    <div class="modal-content">
+        <h3>👥 Multiple faces detected</h3>
+        <p>Please select the face you want to register:</p>
+        <div id="faceOptions" class="face-options"></div>
+        <button onclick="closeModal()">Cancel</button>
+    </div>
+</div>
+
+<script>
+    const video = document.getElementById('webcam');
+    const overlay = document.getElementById('overlay');
+    const ctx = overlay.getContext('2d');
+    let isRecognizing = true;
+    let stream = null;
+    let recognitionTimer = null;
+    let pendingRegistration = { name: null, imageData: null, faces: null };
+
+    // Helper: resize canvas to match video dimensions
+    function syncCanvasSize() {
+        if (video.videoWidth && video.videoHeight) {
+            overlay.width = video.videoWidth;
+            overlay.height = video.videoHeight;
+        }
+    }
+
+    // ၁။ Camera စတင်ခြင်း
+    async function startWebcam() {
+        try {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            stream = await navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 } });
+            video.srcObject = stream;
+            video.onloadedmetadata = () => {
+                syncCanvasSize();
+                if (recognitionTimer) clearTimeout(recognitionTimer);
+                runRecognition();
+            };
+        } catch (err) {
+            console.error("Camera Error:", err);
+            document.getElementById('status-msg').innerText = "⚠️ Camera access denied or error";
+        }
+    }
+
+    // ၂။ Real-time Recognition Loop (FPS ~ 1.6 – ချောမွေ့မှုအတွက် 600ms)
+    async function runRecognition() {
+        if (!isRecognizing) return;
+
+        if (!video.videoWidth || !video.videoHeight) {
+            recognitionTimer = setTimeout(runRecognition, 200);
+            return;
+        }
+
+        // Capture current frame
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = video.videoWidth;
+        tempCanvas.height = video.videoHeight;
+        tempCanvas.getContext('2d').drawImage(video, 0, 0);
+        const imageData = tempCanvas.toDataURL('image/jpeg', 0.7);
+
+        try {
+            const response = await fetch('/recognize', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: imageData })
+            });
+            const data = await response.json();
+
+            ctx.clearRect(0, 0, overlay.width, overlay.height);
+            syncCanvasSize(); // ensure canvas size always matches video
+
+            if (data.results) {
+                data.results.forEach(person => {
+                    const [x1, y1, x2, y2] = person.bbox;
+                    // Draw bounding box
+                    ctx.strokeStyle = person.name === "Unknown" ? "#ff4444" : "#00ff88";
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+                    // Draw label background
+                    ctx.fillStyle = person.name === "Unknown" ? "#ff4444" : "#00ff88";
+                    ctx.font = "bold 18px 'Segoe UI'";
+                    const label = `${person.name} (${(person.similarity * 100).toFixed(0)}%)`;
+                    const textWidth = ctx.measureText(label).width;
+                    const textX = x1;
+                    const textY = y1 > 30 ? y1 - 8 : y2 + 25;
+                    ctx.fillStyle = "rgba(0,0,0,0.6)";
+                    ctx.fillRect(textX-2, textY-22, textWidth+10, 24);
+                    ctx.fillStyle = person.name === "Unknown" ? "#ffcccc" : "#ccffcc";
+                    ctx.fillText(label, textX, textY-5);
+                });
+            }
+        } catch (e) { console.log("Recognition error:", e); }
+
+        recognitionTimer = setTimeout(runRecognition, 600);  // 0.6 seconds per frame
+    }
+
+    // ၃။ လူသစ်မှတ်ပုံတင်ခြင်း (အနီးဆုံးလူကို ဦးစားပေး၊ multiple ရှိလျှင် modal ဖြင့်ရွေး)
+    async function registerFace() {
+        const name = document.getElementById('reg-name').value.trim();
+        if (!name) {
+            alert("Please enter a name");
+            return;
+        }
+
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = video.videoWidth;
+        tempCanvas.height = video.videoHeight;
+        tempCanvas.getContext('2d').drawImage(video, 0, 0);
+        const imageData = tempCanvas.toDataURL('image/jpeg', 0.9);
+
+        const statusMsg = document.getElementById('status-msg');
+        statusMsg.innerText = "📡 Processing...";
+        statusMsg.style.color = "blue";
+
+        const response = await fetch('/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name, image: imageData })
+        });
+        const result = await response.json();
+
+        if (result.status === 'success') {
+            statusMsg.style.color = "green";
+            statusMsg.innerText = `✅ ${result.message}`;
+            document.getElementById('reg-name').value = "";
+            loadPersonList();
+        } 
+        else if (result.status === 'multiple_faces') {
+            // Show modal to select which face to register
+            pendingRegistration = { name: name, imageData: imageData, faces: result.faces };
+            showFaceSelectionModal(result.faces);
+            statusMsg.innerText = "👥 Multiple faces – please select one";
+            statusMsg.style.color = "orange";
+        }
+        else {
+            statusMsg.style.color = "red";
+            statusMsg.innerText = `❌ ${result.message}`;
+        }
+    }
+
+    // Modal functions
+    function showFaceSelectionModal(faces) {
+        const modal = document.getElementById('faceSelectModal');
+        const container = document.getElementById('faceOptions');
+        container.innerHTML = '';
+        faces.forEach(face => {
+            const div = document.createElement('div');
+            div.className = 'face-option';
+            div.innerHTML = `<img src="data:image/jpeg;base64,${face.thumbnail}" alt="Face ${face.index}"><br>Face ${face.index+1}`;
+            div.onclick = () => confirmSelection(face.index);
+            container.appendChild(div);
+        });
+        modal.style.display = 'flex';
+    }
+
+    async function confirmSelection(selectedIndex) {
+        closeModal();
+        const statusMsg = document.getElementById('status-msg');
+        statusMsg.innerText = "📡 Registering selected face...";
+        statusMsg.style.color = "blue";
+
+        const response = await fetch('/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                name: pendingRegistration.name, 
+                image: pendingRegistration.imageData,
+                selected_face_index: selectedIndex
+            })
+        });
+        const result = await response.json();
+        if (result.status === 'success') {
+            statusMsg.style.color = "green";
+            statusMsg.innerText = `✅ ${result.message}`;
+            document.getElementById('reg-name').value = "";
+            loadPersonList();
+        } else {
+            statusMsg.style.color = "red";
+            statusMsg.innerText = `❌ ${result.message}`;
+        }
+        pendingRegistration = null;
+    }
+
+    function closeModal() {
+        document.getElementById('faceSelectModal').style.display = 'none';
+        pendingRegistration = null;
+    }
+
+    // ၄။ Database မှ လူစာရင်းကို Table ထဲပြခြင်း
+    async function loadPersonList() {
+        try {
+            const response = await fetch('/list_persons');
+            const data = await response.json();
+            const tbody = document.getElementById('person-list');
+            if (Array.isArray(data)) {
+                tbody.innerHTML = data.map(p => `
+                    <tr>
+                        <td>${escapeHtml(p.name)}</td>
+                        <td>${p.created_at || ''}</td>
+                        <td><button class="delete" onclick="deletePerson(${p.id})">Delete</button></td>
+                    </tr>
+                `).join('');
+            } else if (data.status === 'error') {
+                tbody.innerHTML = `<tr><td colspan="3">⚠️ ${data.message}</td></tr>`;
+            }
+        } catch (err) {
+            console.error("Load list error:", err);
+        }
+    }
+
+    async function deletePerson(id) {
+        if (!confirm("Permanently delete this person?")) return;
+        const response = await fetch(`/delete_person/${id}`, { method: 'DELETE' });
+        const result = await response.json();
+        if (result.status === 'success') {
+            loadPersonList();
+            document.getElementById('status-msg').innerHTML = "🗑️ Deleted";
+            setTimeout(() => document.getElementById('status-msg').innerHTML = "", 1500);
+        } else {
+            alert("Delete failed: " + result.message);
+        }
+    }
+
+    function restartCamera() {
+        if (recognitionTimer) clearTimeout(recognitionTimer);
+        startWebcam();
+        isRecognizing = true;
+        document.getElementById('toggleBtn').innerHTML = "⏸️ Pause Recognition";
+    }
+
+    function toggleRecognition() {
+        isRecognizing = !isRecognizing;
+        document.getElementById('toggleBtn').innerHTML = isRecognizing ? "⏸️ Pause Recognition" : "▶️ Start Recognition";
+        if (isRecognizing) runRecognition();
+        else ctx.clearRect(0, 0, overlay.width, overlay.height);
+    }
+
+    function escapeHtml(str) {
+        if (!str) return "";
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+
+    // Start everything
+    startWebcam();
+    loadPersonList();
+</script>
+</body>
+</html>
