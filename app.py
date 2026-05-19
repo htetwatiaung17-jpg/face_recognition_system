@@ -17,9 +17,9 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'default-secret-key')
 
 # ---- Initialize InsightFace Model (Optimized for Real-time) ----
 print("[INFO] Loading InsightFace model...")
-# Real-time အတွက် det_size ကို (480,480) သို့မဟုတ် (320,320) ထားခြင်းဖြင့် ပိုမြန်ဆန်စေသည်
+
 face_app = FaceAnalysis(name='buffalo_l', providers=['CUDAExecutionProvider'])
-face_app.prepare(ctx_id=0, det_size=(640, 640))   # သင့်စနစ်အရ လိုအပ်ပါက (640,640) သို့ပြောင်းနိုင်
+face_app.prepare(ctx_id=0, det_size=(640, 640))   
 print("[INFO] Model loaded successfully.")
 
 # ---- PostgreSQL Database Connection ----
