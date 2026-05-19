@@ -19,7 +19,7 @@
             margin-bottom: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
         }
 
-        /* Camera Section - ပိုကြီးအောင် ပြင်ထားသည် */
+        /* Camera Section */
         .video-wrapper {
             position: relative;
             width: 100%;
@@ -188,7 +188,7 @@
         }
     }
 
-    // ၂။ Real-time Recognition Loop (FPS ~ 1.6 – ချောမွေ့မှုအတွက် 600ms)
+    // ၂။ Real-time Recognition Loop 
     async function runRecognition() {
         if (!isRecognizing) return;
 
@@ -240,7 +240,7 @@
         recognitionTimer = setTimeout(runRecognition, 600);  // 0.6 seconds per frame
     }
 
-    // ၃။ လူသစ်မှတ်ပုံတင်ခြင်း (အနီးဆုံးလူကို ဦးစားပေး၊ multiple ရှိလျှင် modal ဖြင့်ရွေး)
+    // ၃။ လူသစ်မှတ်ပုံတင်ခြင်း 
     async function registerFace() {
         const name = document.getElementById('reg-name').value.trim();
         if (!name) {
