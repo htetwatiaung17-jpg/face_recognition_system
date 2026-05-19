@@ -2,13 +2,13 @@ version: '3.8'
 
 services:
   postgres:
-    # pgvector ပါရှိပြီးသား PostgreSQL image ကိုသုံးပါမယ်
+    
     image: pgvector/pgvector:pg17
     container_name: pgvector-db
     environment:
       POSTGRES_DB: face_db
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: htetwady
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
       - "5433:5432"
     volumes:
